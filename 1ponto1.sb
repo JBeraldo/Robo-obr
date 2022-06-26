@@ -1,0 +1,235 @@
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''SETUP'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Sensor.SetMode(1,0)' Sensor de cor Extrema Direita
+Sensor.SetMode(2,0)'Sensor de Meia Direita
+Sensor.SetMode(3,0)'Sensor de Meia  Esquerda
+Sensor.SetMode(4,0)'Sensor de cor Extrema Esquerda
+Sensor.SetMode(5,0)'Sensor Ultrassônico
+alvo=15       ' Limiar do Branco
+vlinha=50     'Velocidade enquanto segue a linha
+vnegat=-37.5  'Ninguém sabe pra que serve
+erro=0        'Serve pro porcional calcular a curva
+kp=1.2        'Variavel que controla a sensibilidade do seguidor(1.0-2.0)
+Re=-70        'Variável para o valor necessário para testar se há uma linha atrás do marcador verde
+Ign=200       'Quantidade que o robô deve andar para ignorar um marcador falso
+vira=450      'Controle de quanto é 90 Graus em Graus de motor(450-600)
+limitador=0   'Quebra while
+IsPreto=0     'Armazena se passou por uma linha preta durante 90 graus
+Pfrente=150   'Quanto vai pra frente curva 90
+tempo=0       'Ninguém sabe pra que serve
+Ptras=160     'Valor da ré 90 graus
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''LOOP PRINCIPAL'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+While "true"''Engine(Parte Principal (Proporcional com detecção de 90 graus))
+  LoopPrincipal:'Gambiarra Permanente
+  EV3.SetLEDColor("OFF","NORMAL")' LED desligado=seguindo linha ////COLOCAR <=////
+  If Sensor.ReadRawValue(5,0)<=50 Then 'Testa se há Obstáculo
+    'desviarObstaculo() 'Tirei Obstaculo por enquanto
+  EndIf 
+  erro=Sensor.ReadPercent(2)-Sensor.ReadPercent(3)
+  correcao=erro*kp'
+  Motor.StartSteer("AD",vlinha,correcao)
+  If Sensor.ReadPercent(3)<alvo And Sensor.ReadPercent(2)<alvo Then 'Os dois sensores no preto
+    Motor.StartSteer("AD",10,0)
+    TestarVerde()     
+  EndIf
+  If (Sensor.ReadPercent(3)<alvo And Sensor.ReadPercent(2)<alvo) And (Sensor.ReadPercent(1)<alvo And Sensor.ReadPercent(4)<alvo) Then ' 4 Sensores no preto
+    TestaCruzamento()'Testa se não ha cruzamento
+  EndIf
+  
+  If Sensor.ReadPercent(2)<alvo And Sensor.ReadPercent(1)<alvo Then 'curva de 90º pra Direita
+    TestaCruzamento()'Testa se não ha cruzamento
+  ElseIf  Sensor.ReadPercent(4)<alvo And Sensor.ReadPercent(3)<alvo then 'curva de 90 para  Esquerda
+    TestaCruzamento()'Testa se não ha cruzamento
+  Else
+    while Sensor.ReadPercent(1)<alvo and (Sensor.ReadPercent(2)>alvo and Sensor.ReadPercent(3)>alvo and Sensor.ReadPercent(4)>alvo) 'Curva de Emergencia Esquerda(Sensores da Ponta)
+      erro=Sensor.ReadPercent(1)-Sensor.ReadPercent(4)'Calcula erro
+      correcao=erro*(kp*5)'Proporcional muito mais forte
+      Motor.StartSteer("AD",vlinha,correcao)'
+    EndWhile
+    while Sensor.ReadPercent(4)<alvo and (Sensor.ReadPercent(1)>alvo and Sensor.ReadPercent(2)>alvo and Sensor.ReadPercent(3)>alvo) 'Curva de Emergencia Direita(Sensores da Ponta)
+      erro=Sensor.ReadPercent(1)-Sensor.ReadPercent(4)'Calcula erro
+      correcao=erro*(kp*5)'Proporcional muito mais forte
+      Motor.StartSteer("AD",vlinha,correcao)
+    Endwhile
+  EndIf
+EndWhile
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''VERDE'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Sub TestarVerde'Tem que recomentar mas essa parte o Éderson que manja
+  Sensor.SetMode(2,2)
+  Sensor.SetMode(3,2)
+  
+  If Sensor.ReadRawValue(3,0)=3 And Sensor.ReadRawValue(2,0)=3 Then   'Beco sem saida
+    Motor.Move("AD",-20,Re,"tRuE")                                    ' Ré para ver se não é um  beco sem saida falso
+    If(Sensor.ReadRawValue(2,0)=1 Or Sensor.ReadRawValue(3,0)=1) Then ' Se um dos sensores ler uma linha preta atrás do marcador
+      Motor.Move("AD",20,Ign,"tRuE")                                  ' Anda para frente para ignorar o marcador falso
+    Else
+      meiaVolta()
+    EndIf
+  Else
+    If Sensor.ReadRawValue(3,0)=3 And Sensor.ReadRawValue(2,0)<>3  Then' Direita é verde e esquerda não      
+      If Sensor.ReadRawValue(3,0)=3 And Sensor.ReadRawValue(2,0)<>3 Then' Testa se é verde(Condição duplicada)
+      Else
+        Goto LoopPrincipal
+      EndIf 
+      Motor.Stop("AD","TrUe")
+      EV3.SetLEDColor("GREEN","NORMAL")
+      Motor.Move("AD",-20,Re,"tRuE")                                  'Ré para ver se não é um marcador falso
+      If(Sensor.ReadRawValue(3,0)=1) Then                             'Se o sensor esquerdo ler uma linha preta atrás do marcador
+        Motor.Move("AD",20,Ign,"true")                                'Anda para frente para ignorar o marcador falso
+        'Falso marcador, anda para frente para ignorá-lo
+      Else
+        virarDireira()()
+      EndIf
+    EndIf 
+    
+    If Sensor.ReadRawValue(3,0)<>3 And Sensor.ReadRawValue(2,0)=3  Then' Verde a esquerda      
+      If Sensor.ReadRawValue(2,0)=3 and Sensor.ReadRawValue(3,0)<>3 Then
+      Else
+        Goto LoopPrincipal
+      EndIf 
+      EV3.SetLEDColor("GREEN","PULSE")
+      Motor.Move("AD",-20,Re,"tRuE")                                   ' Ré para ver se não é um marcador falso
+      If(Sensor.ReadRawValue(2,0)=1) Then                              'Se o sensor direito ler uma linha preta atrás do marcador
+        Motor.Move("AD",20,Ign,"tRuE")                                 'Anda para frente para ignorar o marcador falso
+        'Falso marcador, anda para frente para ignorá-lo
+      Else
+        virarEsquerda()
+      EndIf  
+    EndIf
+  EndIf   
+  
+  Sensor.SetMode(3,0)
+  Sensor.SetMode(2,0)
+EndSub
+
+Sub meiaVolta
+  Motor.MoveSteer("AD",vlinha,0,350,"true")
+  Motor.MoveSteer("AD",vlinha,-100,900,"true")
+EndSub
+
+Sub virarEsquerda
+  Sensor.SetMode(1,0)                    'Retorna sensor para o modo normal
+  Sensor.SetMode(2,0)                    'Retorna sensor para o modo normal
+  Sensor.SetMode(3,0)                    'Retorna sensor para o modo normal
+  Sensor.SetMode(4,0)                    'Retorna sensor para o modo normal
+  Motor.Move("AD",vlinha,350,"TRUe")     'Andar para frente
+  Motor.MoveSync("AD",-50,50,vira,"tRue")'Vira
+  Motor.Move("AD",(-1*vlinha),120,"TRUe")'Andar para trás  
+  Motor.Stop("AD","true")
+  erro=0
+EndSub
+
+Sub virarDireira
+  Sensor.SetMode(1,0)                    'Retorna sensor para o modo normal
+  Sensor.SetMode(2,0)                    'Retorna sensor para o modo normal
+  Sensor.SetMode(3,0)                    'Retorna sensor para o modo normal
+  Sensor.SetMode(4,0)                    'Retorna sensor para o modo normal
+  Motor.Move("AD",vlinha,350,"TRUe")     'Andar para a frente
+  Motor.MoveSync("AD",50,-50,vira,"tRue")'Vira
+  Motor.Move("AD",(-1*vlinha),120,"TRUe")'Andar para trás
+  Motor.Stop("AD","true")
+  erro=0
+EndSub
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''OBSTÁCULO'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'Obsoleto Não Funciona
+Sub desviarObstaculo
+  EV3.SetLEDColor("RED","NORMAL")           
+  Motor.MoveSync("AD",-50,50,450,"tRue")
+  Motor.MoveSync("AD",50,50,200,"tRue")  
+  kObstaculo=0.025 
+  
+  While "true"
+    correcao=((Sensor.ReadRawValue(7,0)-70)*kObstaculo)
+    Motor.StartSteer("AD",100,correcao)
+  EndWhile  
+  
+EndSub
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''VIRAR 90 GRAUS''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Sub girarDireita   
+  Motor.Move("AD",50,100,"true")'Anda para passar a linha
+  Motor.ResetCount("AD")
+  If (Sensor.ReadPercent(4)>30 Or Sensor.ReadPercent(3)>30 Or Sensor.ReadPercent(2)>30 Or Sensor.ReadPercent(1)>30) Then'testa se passou a linha
+    Motor.ResetCount("AD")
+    While Motor.GetCount("A")<Pfrente And limitador=0'Anda pra frente testando se ha linha preta
+      Motor.Move("AD",100,10,"false") 
+      If (Sensor.ReadPercent(4)<30 Or Sensor.ReadPercent(1)<30) Then  'detecta se passou por uma linha preta enquanto vai para frente
+        IsPreto=1'Registra que passou por linha preta
+      EndIf    
+    EndWhile
+  EndIf  
+  If IsPreto=1 Then'Caso tenha passado por linha preta para na hora e vira para o lado da curva 90 Graus Valor Fixo(VIRA)
+    Motor.MoveSteer("AD",50,-100,vira,"true")
+    Motor.Move("AD",(-1*vlinha),140,"TRUe")
+    IsPreto=0    
+  Else ' condição normal de curva
+    Motor.ResetCount("AD")'Enquanto lê branco vai virando
+    While Sensor.ReadPercent(2)>Alvo
+      Motor.StartSync("AD",-50,50)      
+      If Motor.GetCount("D")>=vira Then'Se virar mais que o Vira para de virar e segue codigo normal
+        Motor.Move("AD",(-1*vlinha),Ptras,"TRUe")
+        Goto LoopPrincipal'Volta pra Engine
+      EndIf     
+    EndWhile
+    Motor.Move("AD",(-1*vlinha),Ptras,"TRUe")'andar para trás
+    If Sensor.ReadPercent(3)>alvo And Sensor.ReadPercent(2)>alvo And Sensor.ReadPercent(1)>alvo And Sensor.ReadPercent(4)>alvo Then'' Testa se após parar em uma curva  na verdade parou entre uma linha e outra
+      While Sensor.ReadPercent(3)>alvo'Enquanto lê branco vai virando
+        Motor.StartSteer("AD",100,-100)' Vira até encontar a linha
+      EndWhile
+      Goto LoopPrincipal'Volta pra Engine         
+    EndIf              
+    Motor.Stop("AD","true")
+    erro=0
+    ultimoerro=0
+    integral=0
+    derivativo=0
+  EndIf
+EndSub
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''Esquerda''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Sub girarEsquerda  
+  Motor.Move("AD",50,100,"true")'Anda para passar a linha
+  Motor.ResetCount("AD")
+  If (Sensor.ReadPercent(4)>30 Or Sensor.ReadPercent(3)>30 Or Sensor.ReadPercent(2)>30 Or Sensor.ReadPercent(1)>30) Then'testa se passou a linha
+    While Motor.GetCount("D")<Pfrente And limitador=0'Anda pra frente testando se ha linha preta
+      Motor.Move("AD",100,10,"false")
+      If (Sensor.ReadPercent(4)<30 Or Sensor.ReadPercent(1)<30) Then  'detecta se passou por uma linha preta enquanto vai para frente
+        IsPreto=1'Registra que passou por linha preta             
+      EndIf   
+    EndWhile
+  EndIf
+  If IsPreto=1 Then'Caso tenha passado por linha preta para na hora e vira para o lado da curva 90 Graus Valor Fixo(VIRA)
+    Motor.MoveSteer("AD",50,100,vira,"true")
+    Motor.Move("AD",(-1*vlinha),140,"TRUe")'
+    IsPreto=0   
+  Else ' condição normal de curva
+    Motor.ResetCount("AD")
+    While Sensor.ReadPercent(3)>alvo'Enquanto lê branco vai virando
+      Motor.StartSync("AD",50,-50)    
+      If Motor.GetCount("A")>=vira Then'Se virar mais que o Vira para de virar e segue codigo normal
+        Motor.Move("AD",(-1*vlinha),Ptras,"TRUe")
+        Goto LoopPrincipal'Volta pra Engine  
+      EndIf     
+    EndWhile
+    Motor.Move("AD",(-1*vlinha),Ptras,"TRUe")'andar para trás
+    If Sensor.ReadPercent(3)>alvo And Sensor.ReadPercent(2)>alvo And Sensor.ReadPercent(1)>alvo And Sensor.ReadPercent(4)>alvo Then' Testa se após parar em uma curva  na verdade parou entre uma linha e outra
+      While Sensor.ReadPercent(2)>alvo'Enquanto lê branco vai virando
+        Motor.StartSteer("AD",100,100)
+      EndWhile
+      Goto LoopPrincipal'Volta pra Engine  
+    EndIf
+    Motor.Stop("AD","true")
+    erro=0
+  EndIf
+endsub
+
+Sub TestaCruzamento ''Pra ver se realmente é curva por que as vezes os 2 sensores entram antes
+  Motor.Move("AD",100,10,"true")'Vai um pouco pra frente para ver se não é um cruzamento
+  If Sensor.ReadPercent(3)<alvo And Sensor.ReadPercent(2)<alvo And Sensor.ReadPercent(1)<alvo And Sensor.ReadPercent(4)<alvo Then ' 4 Sensores no preto    
+    Motor.Move("AD",100,150,"false")'Anda para passar o cruzamento
+  EndIf
+  If Sensor.ReadPercent(1)<alvo And Sensor.ReadPercent(2)<alvo  Then 'curva de 90º pra Direita
+    girarDireita()'90 Direita
+  ElseIf Sensor.ReadPercent(4)<alvo And Sensor.ReadPercent(3)<alvo then 'curva de 90 para Esquerda  
+    girarEsquerda()'90 Esquerda
+  EndIf
+EndSub
